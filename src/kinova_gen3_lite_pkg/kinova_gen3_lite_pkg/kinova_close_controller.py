@@ -9,9 +9,8 @@ from sensor_msgs.msg import PointCloud2
 from kinova_gen3_lite_pkg.Kinova_Gen3_Lite_IKP import kgen3_lite_ik
 
 import sensor_msgs_py.point_cloud2 as pc2
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Float32
 
-from custom_jackal_interfaces.msg import GrapItem, TargetHeight
 from control_msgs.msg import JointTrajectoryControllerState
 from control_msgs.action import GripperCommand  # Added for gripper command action
 
@@ -60,7 +59,7 @@ class KinovaCloseController(Node):
         )
 
         self.target_height_sub = self.create_subscription(
-            TargetHeight,
+            Float32,
             "/j100_0710/target_height",
             self.target_height_callback,
             10
@@ -316,7 +315,7 @@ class KinovaCloseController(Node):
             self.get_logger().debug(f"Joint parsing failed: {e}")
 
     def target_height_callback(self, msg):
-        self.target_height = msg.height
+        self.target_height = msg.data
 
 
 def main(args=None):

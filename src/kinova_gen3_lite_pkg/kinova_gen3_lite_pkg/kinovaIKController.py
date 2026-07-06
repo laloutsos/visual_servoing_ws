@@ -12,7 +12,7 @@ from kinova_gen3_lite_pkg.Kinova_Gen3_Lite_IKP import kgen3_lite_ik
 import sensor_msgs_py.point_cloud2 as pc2
 from control_msgs.msg import JointTrajectoryControllerState
 from custom_jackal_interfaces.msg import TargetHeight
-
+from std_msgs.msg import Float32
 
 class KinovaIKController(Node):
     def __init__(self):
@@ -26,7 +26,7 @@ class KinovaIKController(Node):
         )
 
         self.height_pub = self.create_publisher(
-            TargetHeight,
+            Float32,
             "/j100_0710/target_height",
             10
         )
@@ -149,8 +149,8 @@ class KinovaIKController(Node):
         self.sent = True
 
         # 4. Publish target height status
-        height_msg = TargetHeight()
-        height_msg.height = Z_target
+        height_msg = Float32()
+        height_msg.data = Z_target
         self.height_pub.publish(height_msg)
 
     def send_joint_positions(self, positions, duration_sec=3.0):
