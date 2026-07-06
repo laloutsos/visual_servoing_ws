@@ -1,0 +1,7 @@
+<launch>
+    <node pkg = "flir_camera_pkg" exec = "find_target_3d_points" />
+    <node pkg = "jackal_pkg" exec = "target_follower" />
+    <node pkg = "kinova_gen3_lite_pkg" exec = "kinova_ik_controller" />
+    <node pkg = "kinova_gen3_lite_pkg" exec = "kinova_close_controller" />
+    <node pkg = "kinova_gen3_lite_pkg" exec = "kinova_fixed_position_controller" />
+</launch>
