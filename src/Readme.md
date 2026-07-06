@@ -1,0 +1,12 @@
+# Visual Servoing for Object Tracking and Grasping from a Moving Wheeled Target 
+
+Wheeled mobile robots equipped with a robotic manipulator and appropriate sensors are capable of approaching a moving target and subsequently retrieving objects from its surface. In this work, we present an algorithm that addresses this problem by exploiting the sensing and actuation capabilities of a mobile robotic platform. Using a FLIR camera and a 3D LiDAR sensor, the robot detects a cart moving at constant velocity within the environment, approaches it, and, once a desired distance is reached, re-identifies and grasps an object located on its surface.
+
+The proposed methodology is based on Visual Servoing techniques, enabling the mobile robot to continuously adjust its motion according to 3D LiDAR point measurements corresponding exclusively to the target. Initially, a computer vision model trained to recognize the cart processes the camera stream, detects the target within the image frame, and generates a bounding box around it. Through geometric transformations and coordinate frame projections between the camera and LiDAR systems, the pixels inside the bounding box are associated with the corresponding 3D LiDAR points.
+
+The ROS2 controller of the robotic manipulator does not support direct joint velocity control, accepting only desired joint positions in radians. This constraint required a modification of the original control strategy and the implementation of inverse kinematics methods. Once the target is detected, the manipulator uses LiDAR-derived spatial information to continuously update the position and orientation of its end-effector, guiding it toward the target. Finally, the gripper is activated, closes around the object, and performs the grasp. 
+
+If you would like to test and verify the code, please first set up your computer by following the instructions provided at the following link: 
+https://github.com/laloutsos/Custom_Clearpath_Robot
+
+To solve and extend the inverse kinematics approach, I based my implementation on the code from [INITRobots](https://github.com/INITRobots/OcclusionsfreeIKP). The original implementation was further modified, adapted, and parameterized in order to better fit the requirements of the system and the specific robotic platform used in this work.
