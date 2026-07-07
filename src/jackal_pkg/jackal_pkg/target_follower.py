@@ -372,6 +372,58 @@ class TargetFollowerNode(Node):
         # Publish the filtered target cloud for visualization
         self.point_cloud_pub.publish(target_cloud_msg)
 
+    def update_tracking_state(self, closest_cluster, pred_x, pred_y, now, dt):
+        """
+        Calculates the cluster spatial mean, initializes or updates tracking positions/velocities,
+        and performs gating checks against sudden tracking jumps.
+        Returns True if state updated successfully, False if validation failed.
+        """
+        if not closest_cluster:
+            return False
+
+        # Calculate spatial mean of the target cluster
+        mean_x = sum(p[1] for p in closest_cluster) / len(closest_cluster)
+        mean_y = sum(p[2] for p in closest_cluster) / len(closest_cluster)
+
+        # First target initialization
+        if not self.track_initialized:
+            self.track_x = mean_x
+            self.track_y = mean_y
+            self.track_vx = 0.0
+            self.track_vy = 0.0
+            self.last_track_time = now
+            self.track_initialized = True
+        else:
+            # Validate tracking error against sudden jumps
+            error = math.sqrt(
+                (mean_x - pred_x)**2 +
+                (mean_y - pred_y)**2
+            )
+
+            if error > 0.5:
+                self.lost_frames += 1
+                if self.lost_frames > 10:
+                    self.track_initialized = False
+                    self.use_lidar_only = False
+                return False  # Tracking validation failed
+
+            self.lost_frames = 0
+
+        # Save previous state to calculate velocity components
+        old_x = self.track_x
+        old_y = self.track_y
+
+        self.track_x = mean_x
+        self.track_y = mean_y
+
+        # Compute velocity if time delta is valid
+        if dt > 0.0:
+            self.track_vx = (self.track_x - old_x) / dt
+            self.track_vy = (self.track_y - old_y) / dt
+
+        self.last_track_time = now
+        return True
+
 def main(args=None):
     rclpy.init(args=args)
     node = TargetFollowerNode() 
