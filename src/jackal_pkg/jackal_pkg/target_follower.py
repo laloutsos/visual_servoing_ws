@@ -97,10 +97,17 @@ class TargetFollowerNode(Node):
 
         # Tracking state
         self.track_initialized = False
-        
-        # Estimated target position in robot frame
+
+        # Estimated target position in robot frame (latest valid measurement)
         self.track_x = 0.0
         self.track_y = 0.0
+
+        # Previous valid target position (measurement before the latest one)
+        self.prev_track_x = 0.0
+        self.prev_track_y = 0.0
+
+        # Timestamp of the previous valid target position
+        self.prev_track_time = None
 
         # Estimated target velocity components
         self.track_vx = 0.0
@@ -135,7 +142,7 @@ class TargetFollowerNode(Node):
         if self.completed:
             self.cmd_pub.publish(cmd)
             return
-            
+
         # Case 2: Target lost, rotate in place to search using last known direction
         if self.distance == 1000.0 or self.angle is None: 
             cmd.twist.angular.z = 0.3 * self.last_angle_sign
@@ -173,15 +180,40 @@ class TargetFollowerNode(Node):
 
         now = self.get_clock().now()
 
-        # Compute predicted position based on velocity if tracking is active
+        # Compute predicted position based on the two most recent valid measurements
         if self.track_initialized:
             dt = (
                 now.nanoseconds -
                 self.last_track_time.nanoseconds
             ) / 1e9
 
-            pred_x = self.track_x + self.track_vx * dt
-            pred_y = self.track_y + self.track_vy * dt
+            # Calculate the time interval between the latest and previous measurements
+            if self.prev_track_time is not None:
+                history_dt = (
+                    self.last_track_time.nanoseconds -
+                    self.prev_track_time.nanoseconds
+                ) / 1e9
+            else:
+                history_dt = 0.0
+
+            # Estimate velocity from the two stored target positions
+            if history_dt > 0.0:
+                predicted_vx = (
+                    self.track_x - self.prev_track_x
+                ) / history_dt
+
+                predicted_vy = (
+                    self.track_y - self.prev_track_y
+                ) / history_dt
+            else:
+                # Use the existing velocity estimate until two measurements are available
+                predicted_vx = self.track_vx
+                predicted_vy = self.track_vy
+
+            # Predict the target position at the current time
+            pred_x = self.track_x + predicted_vx * dt
+            pred_y = self.track_y + predicted_vy * dt
+
         else:
             dt = 0.0
             pred_x = None
@@ -199,13 +231,13 @@ class TargetFollowerNode(Node):
         success = self.update_tracking_state(closest_cluster, pred_x, pred_y, now, dt)
         if not success:
             return
-        
+
         # 4. Compute final range, angle, and update threshold states
         self.compute_target_metrics()
 
         # 5. Generate and publish the filtered target point cloud for RViz visualization
         self.publish_target_cloud(msg.header, closest_cluster)
-        
+
         # 6. Finalize timestamp update for the next iteration loop
         self.last_track_time = now
 
@@ -284,7 +316,7 @@ class TargetFollowerNode(Node):
             return []  # Return empty list to indicate validation failure
 
         return object_points
-    
+
     def extract_target_cluster(self, object_points, pred_x, pred_y):
         """
         Anchors the cluster near the predicted track position (or closest point if not tracking)
@@ -316,10 +348,10 @@ class TargetFollowerNode(Node):
         # Ensure cluster contains a valid amount of points
         if len(closest_cluster) < 3:
             return []  # Return empty list to indicate clustering failure
-            
+
 
         return closest_cluster
-    
+
     def compute_target_metrics(self):
         """
         Computes the final range (distance) and azimuth angle to the target,
@@ -336,7 +368,7 @@ class TargetFollowerNode(Node):
             self.use_lidar_only = True
         elif self.distance > 2.5:
             self.use_lidar_only = False
-        
+
         # Check if the robot is close enough to the target
         if self.distance < 1.0:
             self.close_enough = True
@@ -391,6 +423,13 @@ class TargetFollowerNode(Node):
             self.track_y = mean_y
             self.track_vx = 0.0
             self.track_vy = 0.0
+
+            # Initialize the previous position.
+            # A previous timestamp will be available after the next valid measurement.
+            self.prev_track_x = mean_x
+            self.prev_track_y = mean_y
+            self.prev_track_time = None
+
             self.last_track_time = now
             self.track_initialized = True
         else:
@@ -408,6 +447,13 @@ class TargetFollowerNode(Node):
                 return False  # Tracking validation failed
 
             self.lost_frames = 0
+
+            # Preserve the last valid measurement as the previous measurement.
+            # This position becomes the pre-previous position when the next
+            # valid measurement is accepted.
+            self.prev_track_x = self.track_x
+            self.prev_track_y = self.track_y
+            self.prev_track_time = self.last_track_time
 
         # Save previous state to calculate velocity components
         old_x = self.track_x
